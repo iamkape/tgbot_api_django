@@ -1,3 +1,7 @@
+#Creator t.me/@unotuno
+#Number: +375293052131
+#Date: 11.11.2024
+
 from datetime import datetime
 from django.http import JsonResponse
 from rest_framework.decorators import api_view
@@ -5,6 +9,15 @@ from rest_framework.response import Response
 from . import models, serializers
 from docxtpl import DocxTemplate
 
+
+@api_view(['GET'])
+def take_lots(request):
+  active_lots = models.AdminProfile.objects.filter(active_lot='True')
+  lot_ids = active_lots.values_list('id', flat=True)
+  lots = models.Lot.objects.filter(id__in=lot_ids)
+
+  serializer = serializers.LotSerializer(lots, many=True)
+  return Response(serializer.data)
 
 @api_view(['GET'])
 def data_admin(request, id_lot):
@@ -71,3 +84,16 @@ def unactive_lot(request):
     admin.save()
     user.save()
     return JsonResponse({'pen':user.balance})
+
+@api_view(['POST'])
+def up_balance(request):
+    '''Пополняет баланс юзера. Не корректно с именем выходит(имена повторяются)'''
+    request_data = dict(request.GET)
+    user = request_data['name_user']
+    money = request_data['balance']
+    user_name = ''.join(user)
+    money = ''.join(money)
+    info = models.UserProfile.objects.get(user=user_name)
+    info.balance = float(info.balance) + float(money)
+    info.save()
+    return Response('ok')

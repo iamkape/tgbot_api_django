@@ -1,12 +1,14 @@
+#Creator t.me/@unotuno
+#Number: +375293052131
+#Date: 11.11.2024
+
 import asyncio
 import os
 from datetime import datetime, timezone
 import requests
 import django
-from aiogram.enums import ChatType
 from aiogram.filters import Command
 from aiogram.types import message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, InputFile
-from asgiref.sync import sync_to_async
 from django.conf import settings
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.types import FSInputFile
@@ -25,65 +27,35 @@ bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 router = Router()
 
-# def colect_info_lots(id)->list:
-#     '''Собирает данные в Модели Админа'''
-#     info = AdminProfile.objects.filter(lot=id)
-#     data = []
-#     for i in info:
-#         data.append(i)
-#     return data
-
-def collect_lots(id=None)->list:
-    """Получает информацию об активных лотах из базы данных."""
-    info_lot_list = []
-    if id is None:
-        lots = AdminProfile.objects.filter(active_lot='True').prefetch_related('lot')
-        for admin_profile in lots:
-            try:
-                info_lot_list.append(admin_profile.lot)
-            except Lot.DoesNotExist:
-                print(f"Лот с ID {admin_profile.lot_id} не найден.")
-    elif id is not None:
-        lots = Lot.objects.filter(id=id)
-        for lot in lots:
-            info_lot_list.append(lot)
-    return info_lot_list #[<Lot: 4>, <Lot: 5>]
-
-
-async def create_msg(lot_user, channel, kb)->None:
-    '''Создаёт сообщение с фото для бота'''
-    try:
-        for lot in lot_user:
-            print(lot,'Create')
-            img = lot.images.path
-            with open(img, 'rb') as file:
-                file_img = FSInputFile(img)
-            message_text = f"Название: {lot.name_lot}\n"
-            message_text += f"Продавец: {lot.link_seller}\n"
-            message_text += f"Адрес: {lot.address}\n"
-            message_text += f"Описание: {lot.description}\n"
-            message_text += f"Дата окончания лота: {lot.end_date_auction}\n"
-            message_text += f"Цена: {lot.start_price}\n"
-            message_text += f"Следующая ставка: .\n"
-            message_text += f"Лидирует: .\n"
-            await bot.send_photo(channel, photo=file_img, caption=message_text, reply_markup=kb)
-    except Exception as e:
-        print(f'Нет возможности создать карточку лота {e}')
-
 
 @router.message(Command('send'))
 async def send_data_to_channel(message: types.Message)->None:
     """Отправляет информацию о лотах в Telegram-канал сообщением в виде photo>caption photo>buttons."""
     try:
-        active_lots = await sync_to_async(collect_lots)(id=None)
-        for lot in active_lots:
-            print(lot,'send')
-            keyboard = [[InlineKeyboardButton(text='info', callback_data=f'info{lot.id}')],
-                        [InlineKeyboardButton(text='time', callback_data=f'time{lot.id}')],
-                        [InlineKeyboardButton(text='Открыть лот', url=f't.me/boteski_bot?start={lot.id}',
-                                              callback_data=f'{lot.id}')]]
-            kb = InlineKeyboardMarkup(inline_keyboard=keyboard)
-            await create_msg(active_lots, CHANNEL_ID, kb)
+        response = requests.get('http://127.0.0.1:8000/active_lots')
+        lots = response.json()
+        try:
+            for lot in lots:
+                path_img = lot['images']
+                img = path_img[13:]
+                with open(img, 'rb') as file:
+                    file_img = FSInputFile(img)
+                message_text = f"Название: {lot['name_lot']}\n"
+                message_text += f"Продавец: {lot['link_seller']}\n"
+                message_text += f"Адрес: {lot['address']}\n"
+                message_text += f"Описание: {lot['description']}\n"
+                message_text += f"Дата окончания лота: {lot['end_date_auction']}\n"
+                message_text += f"Цена: {lot['start_price']}\n"
+                message_text += f"Следующая ставка: .\n"
+                message_text += f"Лидирует: .\n"
+                keyboard = [[InlineKeyboardButton(text='info', callback_data=f'info{lot['id']}')],
+                            [InlineKeyboardButton(text='time', callback_data=f'time{lot['id']}')],
+                            [InlineKeyboardButton(text='Открыть лот', url=f't.me/boteski_bot?start={lot['id']}',
+                                                  callback_data=f'{lot['id']}')]]
+                kb = InlineKeyboardMarkup(inline_keyboard=keyboard)
+                await bot.send_photo(CHANNEL_ID, photo=file_img, caption=message_text, reply_markup=kb)
+        except Exception as e:
+            print(f'Нет возможности создать карточку лота {e}')
         print(f"Сообщение отправлено в канал {CHANNEL_ID}")
     except Exception as e:
         print(f"Ошибка при получении данных о лотах: {e}")
@@ -93,34 +65,63 @@ async def send_data_to_channel(message: types.Message)->None:
 async def choose_lot( call:CallbackQuery)->None:
     '''Создаёт новое сообщение с карточкой лота когда юзер выбрал лот'''
     id_lot = call.text.split(' ')[1]
-    print(id_lot,'----')
     try:
-        chosen_lot =  await sync_to_async(collect_lots)(id_lot)
-        for lot in chosen_lot:
-            keyboard = [ [InlineKeyboardButton(text='info',callback_data=f'info{lot.id}')],
-                         [InlineKeyboardButton(text='time',callback_data=f'time{lot.id}')],
-                         [InlineKeyboardButton(text='Сделать ставку',callback_data=f'bid{lot.id}')],
+        response = requests.get(f'http://127.0.0.1:8000/lot/{id_lot}')
+        lot_in_choice = response.json()
+        for lot in lot_in_choice:
+            path_img = lot['images']
+            img = path_img[13:]
+            with open(img, 'rb') as file:
+                file_img = FSInputFile(img)
+            message_text = f"Название: {lot['name_lot']}\n"
+            message_text += f"Продавец: {lot['link_seller']}\n"
+            message_text += f"Адрес: {lot['address']}\n"
+            message_text += f"Описание: {lot['description']}\n"
+            message_text += f"Дата окончания лота: {lot['end_date_auction']}\n"
+            message_text += f"Цена: {lot['start_price']}\n"
+            message_text += f"Следующая ставка: .\n"
+            message_text += f"Лидирует: .\n"
+            keyboard = [ [InlineKeyboardButton(text='info',callback_data=f'info{lot['id']}')],
+                         [InlineKeyboardButton(text='time',callback_data=f'time{lot['id']}')],
+                         [InlineKeyboardButton(text='Сделать ставку',callback_data=f'bid{lot['id']}')],
                          [InlineKeyboardButton(text='Настроить ставку',callback_data='auto_bid')],
-                         [InlineKeyboardButton(text='Скачать документ',callback_data=f'doc{id_lot}')],
+                         [InlineKeyboardButton(text='Скачать документ',callback_data=f'doc{lot['id']}')],
                          ]
             kb = InlineKeyboardMarkup(inline_keyboard=keyboard)
-            await create_msg(chosen_lot, call.chat.id, kb)
+            await bot.send_photo(call.chat.id, photo=file_img, caption=message_text, reply_markup=kb)
     except Exception as e:
         print('Нет возможности создать карточку лота')
+
+@router.message(Command('balance'))
+async def up_balace(message: types.Message)->None:
+    '''Пополняет баланс'''
+    try:
+        chat_user = await bot.get_chat_member(CHANNEL_ID, user_id=message.from_user.id)
+        if chat_user.status in ['administrator', 'creator']:
+            info_balance = message.text.split(' ')
+            name_user = info_balance[1]
+            money = info_balance[2]
+            params = {'name_user': name_user,
+                      'balance': money}
+            response = requests.post('http://127.0.0.1:8000/balance_up', params=params)
+        else:
+            await bot.send_message(message.chat.id, text='Проверь правильность ввода команды по примеру'
+                                                         '/balance Oleg 150, или ты не админ')
+    except Exception as e:
+        print(f'Ошибка {e}')
+
 
 @router.message(Command('delete'))
 async def channel_post_handler(message: types.Message)->None:
     '''Деактивирует(удаляет) лот если команду ввёл админ или создатель  канала '''
     user_id = message.from_user.id
     name_lot = message.text[8:]
-    print (name_lot)
     try:
         chat_user = await bot.get_chat_member(CHANNEL_ID, user_id=user_id)
         if chat_user.status in ['administrator', 'creator']:
             params = {'name_lot': name_lot}
             response = requests.post('http://127.0.0.1:8000/delete', params=params)
             a = response.json()
-            print(a['pen'])
     except Exception as e:
         print (f'Error: {e}')
         await bot.send_message(message.chat.id, text='Вероятнее всего вы не являетесь админом или создателем канала,'
