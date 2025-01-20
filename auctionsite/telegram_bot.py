@@ -1,5 +1,5 @@
 #Creator t.me/@unotuno
-#Number: +375293052131
+#Number:
 #Date: 11.11.2024
 
 import asyncio
@@ -19,8 +19,8 @@ if not settings.configured:
 
 from auctionapp.models import Lot, AdminProfile
 
-BOT_TOKEN = '8087669951:AAGD3umc8miQMCYigODSjUyubsn2o_fzmVY'
-CHANNEL_ID = '@channel_auctionius'
+BOT_TOKEN = ''
+CHANNEL_ID = ''
 
 
 bot = Bot(BOT_TOKEN)
